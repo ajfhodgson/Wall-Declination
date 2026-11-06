@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wall Declination Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+    :root {
+        color-scheme: light dark;
+        --bg: #f4f6f8; --card: #ffffff; --text: #1b1f24; --muted: #5b6672;
+        --border: #d3d9e0; --grid: #e3e7ec; --accent: #1d4ed8; --accent-text: #ffffff;
+        --pt: #2563eb; --mean: #c2410c; --warn: #b45309; --bad: #b91c1c; --ok: #15803d;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #0f1318; --card: #171c23; --text: #e6eaef; --muted: #9aa6b2;
+            --border: #2d3640; --grid: #2a323c; --accent: #3b82f6; --accent-text: #08111f;
+            --pt: #60a5fa; --mean: #fbbf24; --warn: #fbbf24; --bad: #f87171; --ok: #4ade80;
+        }
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 980px; margin: 0 auto; padding: 20px 16px 48px; }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; }
+    h2 { font-size: 1.1rem; margin: 0 0 12px; }
+    .lead { color: var(--muted); margin: 0 0 18px; max-width: 75ch; }
+    .lead p { margin: 0 0 8px; }
+    .lead a { color: var(--accent); overflow-wrap: anywhere; }
+    .card {
+        background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+        padding: 16px; margin-bottom: 16px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+    label { display: block; font-size: .85rem; font-weight: 600; }
+    label small { display: block; font-weight: 400; color: var(--muted); margin-top: 3px; }
+    input, select, button {
+        font: inherit; font-size: 1rem; color: var(--text); background: var(--card);
+        border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+    }
+    label input { display: block; width: 100%; margin-top: 4px; font-weight: 400; }
+    input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input.invalid { border-color: var(--bad); outline: 1px solid var(--bad); }
+    .tablewrap { overflow-x: auto; }
+    table { border-collapse: collapse; }
+    th { font-size: .78rem; color: var(--muted); font-weight: 600; text-align: left; padding: 4px 6px 8px; border-bottom: 1px solid var(--border); vertical-align: bottom; }
+    th.out { max-width: 9.5em; }
+    td { padding: 5px 6px; vertical-align: middle; }
+    tbody { counter-reset: row; }
+    tbody tr { counter-increment: row; }
+    td.n::before { content: counter(row); color: var(--muted); font-size: .85rem; }
+    td.c { text-align: center; }
+    td input[type=text], td input[type=number] { padding: 6px 8px; }
+    input.time { width: 6.5em; }
+    input.meas { width: 7em; -moz-appearance: textfield; }
+    input.meas::-webkit-inner-spin-button, input.meas::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input.date { width: 9em; }
+    td input[type=checkbox] { width: 18px; height: 18px; }
+    .dategrp { display: inline-flex; align-items: center; gap: 4px; position: relative; }
+    button.cal { line-height: 0; padding: 7px; cursor: pointer; color: var(--muted); }
+    button.cal:hover { border-color: var(--accent); color: var(--text); }
+    input.pick { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+    td.out { font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 6.5em; }
+    tr.warn td.calc::after { content: " \26A0"; color: var(--warn); }
+    button.x { border: none; background: transparent; color: var(--muted); font-size: 1.3rem; line-height: 1; padding: 2px 8px; cursor: pointer; }
+    button.x:hover { color: var(--bad); }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+    button.btn { cursor: pointer; }
+    button.btn:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+    button.primary:hover { filter: brightness(1.08); }
+    .spacer { flex: 1; }
+    #status { margin: 12px 0 0; min-height: 1.4em; font-size: .92rem; }
+    #status.err { color: var(--bad); }
+    #status.ok { color: var(--ok); }
+    #status.warn { color: var(--warn); }
+    .headline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+    .big { font-size: 2.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .sub { color: var(--muted); font-size: .9rem; margin: 0 0 14px; }
+    dl.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 18px; margin: 0 0 18px; }
+    dl.stats div { border-top: 1px solid var(--border); padding-top: 6px; }
+    dl.stats dt { font-size: .78rem; color: var(--muted); }
+    dl.stats dd { margin: 0; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+    .chartbox { position: relative; height: 380px; }
+    #chartNote { color: var(--warn); }
+    @media print {
+        .actions, button.x, button.cal, .noprint { display: none !important; }
+        body { background: #fff; }
+    }
+</style>
+</head>
+<body>
+<main>
+    <h1>Wall Declination Calculator</h1>
+    <div class="lead">
+        <p>Using the Declination Measuring Tool, record dates, times and angles when the sun's rays pass directly down the channel. Enter the dates, times and measured angles below.</p>
+        <p>This web app calculates the wall's Declination east of south by averaging the measurements.</p>
+        <p>Outlier measurements can be removed from the calculation by clearing the check-box against that measurement.</p>
+        <p>The calculated solar azimuth is calculated using Jean Meeus's Astronomical Algorithms, see <a href="http://www.jgiesen.de/sunpos/month.html" target="_blank" rel="noopener">http://www.jgiesen.de/sunpos/month.html</a></p>
+    </div>
+
+    <section class="card" aria-labelledby="locHead">
+        <h2 id="locHead">Location and time zone</h2>
+        <div class="grid">
+            <label>Latitude (&deg;, north +)
+                <input id="lat" type="number" step="any" inputmode="decimal" placeholder="e.g. 52.2053">
+            </label>
+            <label>Longitude (&deg;, east +, west &minus;)
+                <input id="lon" type="number" step="any" inputmode="decimal" placeholder="e.g. 0.1218">
+            </label>
+            <label>Time zone (hours from GMT/UT)
+                <input id="off" type="number" step="any" inputmode="decimal" value="0">
+                <small>UK: 0 in winter, +1 in summer (BST)</small>
+            </label>
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="measHead">
+        <h2 id="measHead">Measurements</h2>
+        <div class="tablewrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th title="Clear the tick to leave a row out of the calculation">Use</th>
+                        <th>Date</th>
+                        <th>Time (hh:mm:ss)</th>
+                        <th class="out">Measured azimuth (&deg;)</th>
+                        <th class="out">Calculated azimuth (&deg;)</th>
+                        <th class="out">Declination East of South (&deg;)</th>
+                        <th><span class="noprint" style="visibility:hidden">x</span></th>
+                    </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+        <div class="actions">
+            <button type="button" class="btn" id="addRow">+ Add row</button>
+            <button type="button" class="btn primary" id="calc">Calculate Declination</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn" id="save">Save CSV&hellip;</button>
+            <button type="button" class="btn" id="load">Load CSV&hellip;</button>
+            <button type="button" class="btn" id="clear">Clear table</button>
+            <input type="file" id="file" accept=".csv,text/csv,text/plain" hidden>
+        </div>
+        <p id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card" id="results" hidden aria-labelledby="resHead">
+        <h2 id="resHead">Results</h2>
+        <div class="headline">
+            <span class="big" id="decBig"></span>
+            <span id="decText"></span>
+        </div>
+        <p class="sub" id="decSub"></p>
+        <dl class="stats" id="stats"></dl>
+        <div class="chartbox"><canvas id="chart" role="img" aria-label="Scatter plot of declination east of south against measured azimuth for each measurement"></canvas></div>
+        <p id="chartNote" hidden>The chart library could not be loaded (it comes from cdnjs.cloudflare.com), so the graph is unavailable. The table and statistics above are unaffected.</p>
+    </section>
+</main>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   Solar position: copied from Polar-Sun-Az-El-Plot.html (Sun-Az-El-Plot
+   repo) with ONE change: in the equation of time, the constant 0.0057183
+   is now subtracted inside toDegrees(), i.e. in degrees (see eot_m below).
+   solarPosition() reads the date's clock fields (getHours etc.) as UT and
+   returns azimuth measured from SOUTH, positive toward WEST (-180..180).
+   ===================================================================== */
+        // Solar position calculation functions
+        function toRadians(degrees) {
+            return degrees * (Math.PI / 180);
+        }
+        
+        function toDegrees(radians) {
+            return radians * (180 / Math.PI);
+        }
+        
+        function julianDay(date) {
+            const a = Math.floor((14 - date.getMonth() - 1) / 12);
+            const y = date.getFullYear() + 4800 - a;
+            const m = date.getMonth() + 1 + 12 * a - 3;
+            return date.getDate() + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+        }
+        
+        function solarPosition(date, latitude, longitude) {
+            const lat = toRadians(latitude);
+            const jd = julianDay(date); // days since 1 Jan 4713 BCE in the proleptic Julian calendar
+            const n = jd - 2451545.0; // Days since J2000.0 epoch (1 Jan 2000, 12:00 UT)
+            
+            const L = (280.460 + 0.9856474 * n) % 360; // Mean longitude of sun (mean => circular not elliptical orbit)
+            // 280.460 is the sun's mean longitude at J2000.0 (in degrees), increasing 0.9856474 per day
+            const g = toRadians((357.528 + 0.9856003 * n) % 360); // 'Mean anomaly' - angle since perhihelion (3/4 Jan) today assuming circular orbit
+            const correction = 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g) // +advance/-retard angle vs circular orbit, 0 at perhihelion and aphelion)
+            const lambda = toRadians( (L + correction) % 360); // True longitude in elliptical orbit
+            
+            // Obliquity of ecliptic
+            const epsilon = toRadians(23.439 - 0.0000004 * n); // linearised effect of 26,000 year precession of the poles
+            // 23.439 was obliquity at J2000.0, in 2025 it's 0.0036525 less, i.e. 23.4353475
+            // Convert from coordinates in plane of the orbit, to in plane of earth's equator (Right ascension and declination)
+            const alpha = Math.atan2(Math.cos(epsilon) * Math.sin(lambda), Math.cos(lambda)); // Right Ascension (angle from First Point of Aries)
+            const delta = Math.asin(Math.sin(epsilon) * Math.sin(lambda)); // Declination above the equator
+            
+            // Equation of time (in minutes)
+            const eot_m = 4 * toDegrees(toRadians(L - 0.0057183) - alpha); // alpha builds in the impact of elliptical orbit
+            
+            // Local solar time
+            const hours = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+            const solarTime = hours + eot_m / 60; // Apply equation of time correction
+            
+            // Hour angle
+            const h = toRadians(15 * (solarTime - 12) + longitude);
+            
+            // Solar elevation and azimuth
+            const elevation = Math.asin(Math.sin(lat) * Math.sin(delta) + Math.cos(lat) * Math.cos(delta) * Math.cos(h));
+            const azimuth = Math.atan2(Math.sin(h), Math.cos(h) * Math.sin(lat) - Math.tan(delta) * Math.cos(lat));
+            
+            return {
+                elevation: toDegrees(elevation),
+                azimuth: toDegrees(azimuth % 360)
+            };
+        }
+
+/* =====================================================================
+   Helpers around the solar function
+   ===================================================================== */
+const pad2 = n => String(n).padStart(2, '0');
+const wrap180 = x => ((x + 180) % 360 + 360) % 360 - 180;   // -> [-180, 180)
+const mod360 = x => ((x % 360) + 360) % 360;                 // -> [0, 360)
+
+// solarPosition() only calls these six getters, so we hand it UT clock fields
+// directly. That avoids the browser's own time zone / daylight-saving gaps.
+function clockFields(y, m0, d, hh, mm, ss) {
+    return {
+        getFullYear: () => y, getMonth: () => m0, getDate: () => d,
+        getHours: () => hh, getMinutes: () => mm, getSeconds: () => ss
+    };
+}
+
+// Local clock time in the user's time zone -> UT clock fields.
+function toUtClock(isoDate, hms, offsetHours) {
+    const [y, mo, d] = isoDate.split('-').map(Number);
+    const ms = Date.UTC(y, mo - 1, d, hms[0], hms[1], hms[2]) - offsetHours * 3600000;
+    const u = new Date(ms);
+    return clockFields(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate(),
+                       u.getUTCHours(), u.getUTCMinutes(), u.getUTCSeconds());
+}
+
+// Accepts hh:mm, hh:mm:ss, and (from spreadsheets) 12-hour times with AM/PM.
+function parseTime(s) {
+    const m = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?\s*$/.exec(s || '');
+    if (!m) return null;
+    let hh = +m[1];
+    const mm = +m[2], ss = m[3] === undefined ? 0 : +m[3];
+    if (m[4]) {
+        if (hh < 1 || hh > 12) return null;
+        hh = (hh % 12) + (/p/i.test(m[4]) ? 12 : 0);
+    }
+    if (hh > 23 || mm > 59 || ss > 59) return null;
+    return [hh, mm, ss];
+}
+
+// Dates are shown and saved as dd-Mmm-yyyy (06-Aug-2026), so day and month can
+// never be confused. Also accepted: 6-aug-2026, 06 August 2026, 06-Aug-26 (what
+// Excel writes) and yyyy-mm-dd. Purely numeric day/month/year such as 06/08/2026
+// is refused on purpose, because it means different dates in the UK and the US.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function normaliseDate(s) {                                   // -> 'yyyy-mm-dd' or null
+    s = (s || '').trim();
+    let y, mo, d, m;
+    if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(s))) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+    else if ((m = /^(\d{1,2})[-\/. ]+([A-Za-z]{3,9})\.?[-\/., ]+(\d{4}|\d{2})$/.exec(s))) {
+        d = +m[1];
+        mo = MONTHS.findIndex(x => x.toLowerCase() === m[2].slice(0, 3).toLowerCase()) + 1;
+        if (!mo) return null;
+        y = +m[3] + (m[3].length === 2 ? 2000 : 0);
+    } else return null;
+    const t = new Date(Date.UTC(y, mo - 1, d));
+    if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+    return `${y}-${pad2(mo)}-${pad2(d)}`;
+}
+function fmtDate(iso) {                                        // 'yyyy-mm-dd' -> '06-Aug-2026'
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${pad2(d)}-${MONTHS[m - 1]}-${y}`;
+}
+// Shows any readable date in the standard form; leaves unreadable text as typed.
+function dateForDisplay(s) { const iso = normaliseDate(s); return iso ? fmtDate(iso) : (s || ''); }
+
+// The tool reads compass bearings (from North, clockwise), but solarPosition()
+// measures from South, positive toward West: add 180 degrees.
+const toCompass = azSouth => mod360(180 + azSouth);
+
+const T95 = [12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.160,
+             2.145, 2.131, 2.120, 2.110, 2.101, 2.093, 2.086, 2.080, 2.074, 2.069, 2.064, 2.060, 2.056,
+             2.052, 2.048, 2.045, 2.042];
+function tCrit95(df) {
+    if (df <= 30) return T95[df - 1];
+    return df <= 40 ? 2.021 : df <= 60 ? 2.000 : df <= 120 ? 1.980 : 1.960;
+}
+
+function circularMeanDeg(degs) {
+    let s = 0, c = 0;
+    degs.forEach(d => { const r = d * Math.PI / 180; s += Math.sin(r); c += Math.cos(r); });
+    return Math.atan2(s, c) * 180 / Math.PI;
+}
+
+// decs are wrapped to [-180,180). Re-centre them on their circular mean so a
+// set straddling +/-180 is still averaged correctly.
+function computeStats(decs) {
+    const ref = circularMeanDeg(decs);
+    const adj = decs.map(e => ref + wrap180(e - ref));
+    const n = adj.length;
+    const mean = adj.reduce((a, b) => a + b, 0) / n;
+    const sd = n > 1 ? Math.sqrt(adj.reduce((a, e) => a + (e - mean) ** 2, 0) / (n - 1)) : NaN;
+    const half = n > 1 ? tCrit95(n - 1) * sd / Math.sqrt(n) : NaN;   // 95% t-interval half-width
+    return { n, ref, adj, mean, sd, half };
+}
+
+const f2 = x => Number.isFinite(x) ? x.toFixed(2) : '–';
+const signed = x => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2);
+
+/* =====================================================================
+   Table handling
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const tbody = $('rows');
+let chart = null;
+let lastRender = null;
+
+function todayISO() {
+    const t = new Date();
+    return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+}
+
+const CAL_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">' +
+                 '<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>';
+
+function addRow(d = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td class="n"></td>' +
+        '<td class="c"><input type="checkbox" class="use" aria-label="Include this row in the calculation"></td>' +
+        '<td><span class="dategrp">' +
+            '<input type="text" class="date" placeholder="dd-Mmm-yyyy" maxlength="14" autocomplete="off" aria-label="Date, dd-Mmm-yyyy">' +
+            '<button type="button" class="cal" aria-label="Choose the date from a calendar">' + CAL_ICON + '</button>' +
+            '<input type="date" class="pick" tabindex="-1" aria-hidden="true">' +
+        '</span></td>' +
+        '<td><input type="text" class="time" inputmode="numeric" placeholder="hh:mm:ss" maxlength="11" aria-label="Time, hh:mm:ss"></td>' +
+        '<td><input type="number" class="meas" step="any" inputmode="decimal" aria-label="Measured azimuth in degrees"></td>' +
+        '<td class="out calc"></td>' +
+        '<td class="out dec"></td>' +
+        '<td class="c"><button type="button" class="x" aria-label="Remove this row">×</button></td>';
+    tr.querySelector('.use').checked = d.use !== false;
+    tr.querySelector('.date').value = dateForDisplay(d.date);
+    tr.querySelector('.time').value = d.time || '';
+    tr.querySelector('.meas').value = d.meas === undefined ? '' : d.meas;
+    tbody.appendChild(tr);
+    return tr;
+}
+
+function resetRows(n) {
+    tbody.innerHTML = '';
+    const today = todayISO();
+    for (let i = 0; i < n; i++) addRow({ date: today });
+}
+
+function setStatus(msg, kind) {
+    const el = $('status');
+    el.textContent = msg || '';
+    el.className = kind || '';
+}
+
+// Any edit makes the old results stale: clear them rather than show wrong numbers.
+function invalidate() {
+    tbody.querySelectorAll('tr').forEach(tr => {
+        tr.querySelector('.calc').textContent = '';
+        tr.querySelector('.dec').textContent = '';
+        tr.querySelector('.calc').removeAttribute('title');
+        delete tr.dataset.calc;
+        delete tr.dataset.dec;
+        tr.classList.remove('warn');
+    });
+    $('results').hidden = true;
+    if (chart) { chart.destroy(); chart = null; }
+    lastRender = null;
+}
+
+function onEdit(e) {
+    if (e.target.classList) e.target.classList.remove('invalid');
+    invalidate();
+}
+tbody.addEventListener('input', onEdit);
+['lat', 'lon', 'off'].forEach(id => {
+    $(id).addEventListener('input', onEdit);
+    $(id).addEventListener('change', onEdit);
+});
+
+// Tidy a typed date into dd-Mmm-yyyy as soon as the box loses focus.
+tbody.addEventListener('focusout', e => {
+    if (e.target.classList.contains('date')) {
+        const iso = normaliseDate(e.target.value);
+        if (iso) e.target.value = fmtDate(iso);
+    }
+});
+
+// Calendar button: opens the browser's date picker; the choice comes back as dd-Mmm-yyyy.
+tbody.addEventListener('change', e => {
+    if (!e.target.classList.contains('pick') || !e.target.value) return;
+    const text = e.target.closest('.dategrp').querySelector('.date');
+    text.value = fmtDate(e.target.value);
+    onEdit({ target: text });
+});
+
+tbody.addEventListener('click', e => {
+    const cal = e.target.closest('button.cal');
+    if (cal) {
+        const grp = cal.closest('.dategrp');
+        const pick = grp.querySelector('.pick');
+        pick.value = normaliseDate(grp.querySelector('.date').value) || '';
+        try { pick.showPicker(); } catch (err) { pick.focus(); pick.click(); }
+        return;
+    }
+    const btn = e.target.closest('button.x');
+    if (!btn) return;
+    btn.closest('tr').remove();
+    if (!tbody.rows.length) addRow({ date: todayISO() });
+    invalidate();
+});
+
+$('addRow').addEventListener('click', () => {
+    const last = tbody.rows[tbody.rows.length - 1];
+    const tr = addRow({ date: last ? last.querySelector('.date').value : todayISO() });
+    tr.querySelector('.time').focus();
+    invalidate();
+});
+
+$('clear').addEventListener('click', () => {
+    const started = [...tbody.rows].some(tr => tr.querySelector('.time').value || tr.querySelector('.meas').value);
+    if (started && !confirm('Clear all rows from the table?')) return;
+    resetRows(5);
+    invalidate();
+    setStatus('');
+});
+
+/* =====================================================================
+   Calculation
+   ===================================================================== */
+function calculate() {
+    setStatus('');
+    document.querySelectorAll('.invalid').forEach(el => el.classList.remove('invalid'));
+    invalidate();
+
+    // --- location / time zone ---
+    const latEl = $('lat'), lonEl = $('lon'), offEl = $('off');
+    const lat = parseFloat(latEl.value), lon = parseFloat(lonEl.value), off = parseFloat(offEl.value);
+    const fail = (el, msg) => { el.classList.add('invalid'); el.focus(); setStatus(msg, 'err'); };
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) return fail(latEl, 'Enter a latitude between −90 and 90 degrees.');
+    if (!Number.isFinite(lon) || lon < -180 || lon > 180) return fail(lonEl, 'Enter a longitude between −180 and 180 degrees (east positive).');
+    if (!Number.isFinite(off) || off < -14 || off > 14) return fail(offEl, 'Enter the time zone as hours from GMT/UT, between −14 and 14.');
+
+    // --- rows ---
+    const items = [];
+    let badRows = 0, badDate = false, belowHorizon = 0, firstBad = null;
+    [...tbody.rows].forEach((tr, i) => {
+        const dEl = tr.querySelector('.date'), tEl = tr.querySelector('.time'), mEl = tr.querySelector('.meas');
+        if (!tEl.value.trim() && !mEl.value.trim()) return;       // untouched row
+        const date = normaliseDate(dEl.value);
+        const hms = parseTime(tEl.value);
+        const meas = parseFloat(mEl.value);
+        let bad = false;
+        if (!date) { dEl.classList.add('invalid'); bad = true; badDate = true; }
+        if (!hms) { tEl.classList.add('invalid'); bad = true; }
+        if (!Number.isFinite(meas)) { mEl.classList.add('invalid'); bad = true; }
+        if (bad) { badRows++; if (!firstBad) firstBad = { tr, n: i + 1 }; return; }
+
+        const pos = solarPosition(toUtClock(date, hms, off), lat, lon);
+        const calc = toCompass(pos.azimuth);
+        const dec = wrap180(meas - calc);          // wall declination east of south implied by this reading
+        tr.querySelector('.calc').textContent = f2(calc);
+        tr.querySelector('.dec').textContent = signed(dec);
+        tr.dataset.calc = calc.toFixed(4);
+        tr.dataset.dec = dec.toFixed(4);
+        if (pos.elevation <= 0) {
+            belowHorizon++;
+            tr.classList.add('warn');
+            tr.querySelector('.calc').title = 'The sun is below the horizon at this date and time. Check the time and time zone.';
+        }
+        items.push({ date, time: `${pad2(hms[0])}:${pad2(hms[1])}:${pad2(hms[2])}`, meas, calc, dec,
+                     use: tr.querySelector('.use').checked });
+    });
+
+    if (badRows) {
+        setStatus(`Row ${firstBad.n}${badRows > 1 ? ` and ${badRows - 1} more` : ''} ${badRows > 1 ? 'have' : 'has'} a missing or unreadable date, time or azimuth. Fix the highlighted fields and calculate again.` +
+                  (badDate ? ' Dates must be written like 06-Aug-2026.' : ''), 'err');
+        invalidate();   // clears computed cells only; the highlights stay
+        return;
+    }
+    if (!items.length) { setStatus('Enter at least one measurement (time and measured azimuth).', 'err'); return; }
+
+    const used = items.filter(i => i.use);
+    if (!used.length) {
+        setStatus('Calculated azimuths and declinations are shown, but every row is unticked in the Use column, so there are no statistics.', 'warn');
+        return;
+    }
+
+    const st = computeStats(used.map(i => i.dec));
+    let k = 0;
+    const usedPts = [], exclPts = [];
+    items.forEach(it => {
+        const info = `${fmtDate(it.date)} ${it.time}: measured ${f2(it.meas)}°, calculated ${f2(it.calc)}°, declination ${signed(it.dec)}°`;
+        if (it.use) usedPts.push({ x: mod360(it.meas), y: st.adj[k++], info });
+        else exclPts.push({ x: mod360(it.meas), y: st.ref + wrap180(it.dec - st.ref), info });
+    });
+
+    showResults(st, items.length, { lat, lon, off });
+    lastRender = { used: usedPts, excluded: exclPts, mean: st.mean, sd: st.sd };
+    drawChart();
+
+    const notes = [];
+    if (belowHorizon) notes.push(`${belowHorizon} row${belowHorizon > 1 ? 's have' : ' has'} the sun below the horizon (⚠): check the time and time zone.`);
+    if (st.n < 3) notes.push('With fewer than three measurements the spread figures are not very meaningful.');
+    setStatus(notes.length ? `Calculated ${items.length} row${items.length > 1 ? 's' : ''}. ${notes.join(' ')}` : `Calculated ${items.length} row${items.length > 1 ? 's' : ''}.`, notes.length ? 'warn' : 'ok');
+}
+
+function showResults(st, total, ctx) {
+    const dec = wrap180(st.mean);
+    $('decBig').textContent = signed(dec) + '°';
+    $('decText').textContent = 'Mean wall declination (east of south)';
+    $('decSub').textContent =
+        `Location ${ctx.lat}°, ${ctx.lon}° · time zone UT ${ctx.off >= 0 ? '+' : '−'}${Math.abs(ctx.off)} h`;
+    const ci = Number.isFinite(st.half) ? `${signed(wrap180(st.mean - st.half))} to ${signed(wrap180(st.mean + st.half))}°` : '–';
+    const rows = [
+        ['Measurements used', `${st.n} of ${total}`],
+        ['Standard deviation', `${f2(st.sd)}°`],
+        ['95% confidence interval', ci]
+    ];
+    $('stats').innerHTML = rows.map(([t, v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join('');
+    $('results').hidden = false;
+}
+
+/* =====================================================================
+   Chart: declination against azimuth
+   ===================================================================== */
+function drawChart() {
+    if (!lastRender) return;
+    const note = $('chartNote');
+    if (typeof Chart === 'undefined') { note.hidden = false; return; }
+    note.hidden = true;
+    if (chart) { chart.destroy(); chart = null; }
+
+    const { used, excluded, mean, sd } = lastRender;
+    const css = getComputedStyle(document.documentElement);
+    const v = n => css.getPropertyValue(n).trim();
+    Chart.defaults.color = v('--muted');
+    Chart.defaults.borderColor = v('--grid');
+
+    const xs = used.concat(excluded).map(p => p.x);
+    let xmin = Math.min(...xs), xmax = Math.max(...xs);
+    const pad = (xmax - xmin) * 0.1 || 5;
+    xmin -= pad; xmax += pad;
+
+    const hline = (y, dash, label) => ({
+        type: 'line', label, data: [{ x: xmin, y }, { x: xmax, y }], showLine: true,
+        pointRadius: 0, pointHoverRadius: 0, borderColor: v('--mean'), borderWidth: 2, borderDash: dash, order: 2
+    });
+    const datasets = [{
+        label: 'Measurements', data: used, backgroundColor: v('--pt'), borderColor: v('--pt'),
+        pointRadius: 6, pointHoverRadius: 8, order: 1
+    }];
+    if (excluded.length) datasets.push({
+        label: 'Left out of the calculation', data: excluded, backgroundColor: 'transparent', borderColor: v('--muted'),
+        borderWidth: 2, pointRadius: 6, pointHoverRadius: 8, pointStyle: 'rectRot', order: 1
+    });
+    datasets.push(hline(mean, [], `Mean declination ${signed(wrap180(mean))}°`));
+    if (Number.isFinite(sd)) {
+        datasets.push(hline(mean + sd, [6, 4], '±1 standard deviation'));
+        datasets.push(hline(mean - sd, [6, 4], ''));
+    }
+
+    chart = new Chart($('chart'), {
+        type: 'scatter',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+                x: { type: 'linear', min: xmin, max: xmax, title: { display: true, text: 'Measured azimuth (° from North, clockwise)' } },
+                y: { title: { display: true, text: 'Declination east of south (°)' } }
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { filter: item => item.text !== '' } },
+                tooltip: {
+                    filter: item => !!(item.raw && item.raw.info),
+                    callbacks: { title: () => '', label: item => item.raw.info }
+                }
+            }
+        }
+    });
+}
+if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawChart);
+}
+
+/* =====================================================================
+   CSV save / load
+   ===================================================================== */
+const CSV_HEADER = ['date', 'time', 'measured_azimuth', 'use', 'calculated_azimuth', 'declination_east_of_south',
+                    'latitude', 'longitude', 'tz_offset_hours'];
+
+function saveCsv() {
+    const lines = [CSV_HEADER.join(',')];
+    [...tbody.rows].forEach(tr => {
+        const time = tr.querySelector('.time').value.trim();
+        const meas = tr.querySelector('.meas').value.trim();
+        if (!time && !meas) return;
+        const hms = parseTime(time);
+        const timeOut = hms ? `${pad2(hms[0])}:${pad2(hms[1])}:${pad2(hms[2])}` : time;
+        lines.push([
+            dateForDisplay(tr.querySelector('.date').value.trim()), timeOut, meas, tr.querySelector('.use').checked ? 1 : 0,
+            tr.dataset.calc || '', tr.dataset.dec || '',
+            $('lat').value.trim(), $('lon').value.trim(), $('off').value.trim()
+        ].join(','));
+    });
+    if (lines.length === 1) { setStatus('There are no measurements to save yet.', 'err'); return; }
+
+    let name = `declination-data-${todayISO()}.csv`;
+    try {
+        const answer = window.prompt('File name for the CSV:', name);
+        if (answer === null) return;                       // cancelled
+        if (answer.trim()) name = answer.trim();
+    } catch (e) { /* prompts blocked: use the default name */ }
+    name = name.replace(/[\\/:*?"<>|]+/g, '_');
+    if (!/\.csv$/i.test(name)) name += '.csv';
+
+    const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setStatus(`Saved ${lines.length - 1} measurement${lines.length > 2 ? 's' : ''} as ${name}.`, 'ok');
+}
+
+function parseCsv(text) {
+    text = text.replace(/^﻿/, '');
+    const firstLine = text.split(/\r\n|\n|\r/, 1)[0] || '';
+    const delim = firstLine.includes(',') ? ',' : (firstLine.includes(';') ? ';' : ',');
+    const rows = [];
+    let row = [], field = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (q) {
+            if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; }
+            else field += ch;
+        } else if (ch === '"') q = true;
+        else if (ch === delim) { row.push(field); field = ''; }
+        else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && text[i + 1] === '\n') i++;
+            row.push(field); field = ''; rows.push(row); row = [];
+        } else field += ch;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+function loadCsvText(text, fileName) {
+    const table = parseCsv(text);
+    if (table.length < 2) { setStatus(`${fileName} has no data rows.`, 'err'); return; }
+    const key = h => h.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    const head = table[0].map(key);
+    const col = (...names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
+    const cDate = col('date'), cTime = col('time'), cMeas = col('measured_azimuth', 'measured', 'azimuth');
+    if (cDate < 0 || cTime < 0 || cMeas < 0) {
+        setStatus(`${fileName} needs columns named date, time and measured_azimuth in its first row.`, 'err');
+        return;
+    }
+    const cUse = col('use'), cLat = col('latitude', 'lat'), cLon = col('longitude', 'lon', 'long'),
+          cOff = col('tz_offset_hours', 'tz_offset', 'offset');
+
+    const data = [];
+    let badDates = 0, badTimes = 0, meta = null;
+    table.slice(1).forEach(r => {
+        const get = i => (i >= 0 && i < r.length) ? r[i].trim() : '';
+        const timeRaw = get(cTime), measRaw = get(cMeas), dateRaw = get(cDate);
+        if (!timeRaw && !measRaw) return;
+        const hms = parseTime(timeRaw);
+        if (!normaliseDate(dateRaw)) badDates++;
+        if (!hms) badTimes++;
+        const useRaw = get(cUse).toLowerCase();
+        data.push({
+            date: dateRaw,                                  // unreadable text is kept so it can be corrected on screen
+            time: hms ? `${pad2(hms[0])}:${pad2(hms[1])}:${pad2(hms[2])}` : timeRaw,
+            meas: measRaw,
+            use: !['0', 'false', 'no', 'n'].includes(useRaw)
+        });
+        if (!meta) meta = { lat: get(cLat), lon: get(cLon), off: get(cOff) };
+    });
+    if (!data.length) { setStatus(`${fileName} has no measurement rows.`, 'err'); return; }
+
+    tbody.innerHTML = '';
+    data.forEach(addRow);
+    if (meta) {
+        if (Number.isFinite(parseFloat(meta.lat))) $('lat').value = parseFloat(meta.lat);
+        if (Number.isFinite(parseFloat(meta.lon))) $('lon').value = parseFloat(meta.lon);
+        if (Number.isFinite(parseFloat(meta.off))) $('off').value = parseFloat(meta.off);
+    }
+    invalidate();
+    const problems = [];
+    if (badDates) problems.push(`${badDates} unreadable date${badDates > 1 ? 's' : ''} (use a form like 06-Aug-2026)`);
+    if (badTimes) problems.push(`${badTimes} unreadable time${badTimes > 1 ? 's' : ''}`);
+    setStatus(`Loaded ${data.length} measurement${data.length > 1 ? 's' : ''} from ${fileName}.` +
+              (problems.length ? ` Check ${problems.join(' and ')}.` : '') +
+              ' Add more rows if needed, then press Calculate Declination.', problems.length ? 'warn' : 'ok');
+}
+
+$('load').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => {
+    const file = e.target.files[0];
+    e.target.value = '';                                   // allow re-loading the same file
+    if (!file) return;
+    const started = [...tbody.rows].some(tr => tr.querySelector('.time').value || tr.querySelector('.meas').value);
+    if (started && !confirm(`Replace the current table with the contents of ${file.name}?`)) return;
+    const reader = new FileReader();
+    reader.onload = () => loadCsvText(String(reader.result), file.name);
+    reader.onerror = () => setStatus(`Could not read ${file.name}.`, 'err');
+    reader.readAsText(file);
+});
+$('save').addEventListener('click', saveCsv);
+$('calc').addEventListener('click', calculate);
+
+resetRows(5);
+</script>
+</body>
+</html>
