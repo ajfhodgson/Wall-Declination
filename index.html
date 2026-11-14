@@ -132,6 +132,7 @@
                         <th class="out">Measured azimuth (&deg;)</th>
                         <th class="out">Calculated azimuth (&deg;)</th>
                         <th class="out">Declination East of South (&deg;)</th>
+                        <th class="out" title="This row's declination minus the mean declination">Delta (&deg;)</th>
                         <th><span class="noprint" style="visibility:hidden">x</span></th>
                     </tr>
                 </thead>
@@ -253,8 +254,9 @@ function toUtClock(isoDate, hms, offsetHours) {
 }
 
 // Accepts hh:mm, hh:mm:ss, and (from spreadsheets) 12-hour times with AM/PM.
+// Accepts hh:mm, hh:mm:ss, and (from spreadsheets) 12-hour times with AM/PM.
 function parseTime(s) {
-    const m = /^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?\s*$/.exec(s || '');
+    const m =/^\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?\s*$/.exec(s || '');
     if (!m) return null;
     let hh = +m[1];
     const mm = +m[2], ss = m[3] === undefined ? 0 : +m[3];
@@ -323,7 +325,8 @@ function computeStats(decs) {
 }
 
 const f2 = x => Number.isFinite(x) ? x.toFixed(2) : '–';
-const signed = x => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2);
+// Always shows a sign; a value that rounds to zero is shown as +0.00, never -0.00.
+const signed = x => { const r = Math.abs(x).toFixed(2); return (x < 0 && Number(r) !== 0 ? '−' : '+') + r; };
 
 /* =====================================================================
    Table handling
@@ -351,10 +354,11 @@ function addRow(d = {}) {
             '<button type="button" class="cal" aria-label="Choose the date from a calendar">' + CAL_ICON + '</button>' +
             '<input type="date" class="pick" tabindex="-1" aria-hidden="true">' +
         '</span></td>' +
-        '<td><input type="text" class="time" inputmode="numeric" placeholder="hh:mm:ss" maxlength="11" aria-label="Time, hh:mm:ss"></td>' +
+        '<td><input type="text" class="time" placeholder="hh:mm:ss" maxlength="11" autocomplete="off" spellcheck="false" aria-label="Time, hh:mm:ss"></td>' +
         '<td><input type="number" class="meas" step="any" inputmode="decimal" aria-label="Measured azimuth in degrees"></td>' +
         '<td class="out calc"></td>' +
         '<td class="out dec"></td>' +
+        '<td class="out delta"></td>' +
         '<td class="c"><button type="button" class="x" aria-label="Remove this row">×</button></td>';
     tr.querySelector('.use').checked = d.use !== false;
     tr.querySelector('.date').value = dateForDisplay(d.date);
@@ -381,9 +385,11 @@ function invalidate() {
     tbody.querySelectorAll('tr').forEach(tr => {
         tr.querySelector('.calc').textContent = '';
         tr.querySelector('.dec').textContent = '';
+        tr.querySelector('.delta').textContent = '';
         tr.querySelector('.calc').removeAttribute('title');
         delete tr.dataset.calc;
         delete tr.dataset.dec;
+        delete tr.dataset.delta;
         tr.classList.remove('warn');
     });
     $('results').hidden = true;
@@ -491,7 +497,7 @@ function calculate() {
             tr.classList.add('warn');
             tr.querySelector('.calc').title = 'The sun is below the horizon at this date and time. Check the time and time zone.';
         }
-        items.push({ date, time: `${pad2(hms[0])}:${pad2(hms[1])}:${pad2(hms[2])}`, meas, calc, dec,
+        items.push({ tr, date, time: `${pad2(hms[0])}:${pad2(hms[1])}:${pad2(hms[2])}`, meas, calc, dec,
                      use: tr.querySelector('.use').checked });
     });
 
@@ -510,6 +516,12 @@ function calculate() {
     }
 
     const st = computeStats(used.map(i => i.dec));
+    // Delta: this row's declination minus the mean (shown for left-out rows too, to show how far out they are)
+    items.forEach(it => {
+        const delta = wrap180(it.dec - st.mean);
+        it.tr.querySelector('.delta').textContent = signed(delta);
+        it.tr.dataset.delta = delta.toFixed(4);
+    });
     let k = 0;
     const usedPts = [], exclPts = [];
     items.forEach(it => {
@@ -612,7 +624,7 @@ if (window.matchMedia) {
    CSV save / load
    ===================================================================== */
 const CSV_HEADER = ['date', 'time', 'measured_azimuth', 'use', 'calculated_azimuth', 'declination_east_of_south',
-                    'latitude', 'longitude', 'tz_offset_hours'];
+                    'delta', 'latitude', 'longitude', 'tz_offset_hours'];
 
 function saveCsv() {
     const lines = [CSV_HEADER.join(',')];
@@ -624,7 +636,7 @@ function saveCsv() {
         const timeOut = hms ? `${pad2(hms[0])}:${pad2(hms[1])}:${pad2(hms[2])}` : time;
         lines.push([
             dateForDisplay(tr.querySelector('.date').value.trim()), timeOut, meas, tr.querySelector('.use').checked ? 1 : 0,
-            tr.dataset.calc || '', tr.dataset.dec || '',
+            tr.dataset.calc || '', tr.dataset.dec || '', tr.dataset.delta || '',
             $('lat').value.trim(), $('lon').value.trim(), $('off').value.trim()
         ].join(','));
     });
